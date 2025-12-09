@@ -289,12 +289,12 @@ func (db *DB) ImportFromFile(filePath string, encryptionKey string, collections 
 // https://github.com/philippgille/chromem-go/tree/main/examples/s3-export-import
 // for an example.
 //
-//   - reader: An implementation of [io.ReadSeeker]
+//   - reader: An implementation of [io.Reader]. Compression is only supported if [io.Seeker] is also implemented.
 //   - encryptionKey: Optional, must be 32 bytes long if provided
 //   - collections: Optional. If provided, only the collections with the given names
 //     are imported. Non-existing collections are ignored.
 //     If not provided, all collections are imported.
-func (db *DB) ImportFromReader(reader io.ReadSeeker, encryptionKey string, collections ...string) error {
+func (db *DB) ImportFromReader(reader io.Reader, encryptionKey string, collections ...string) error {
 	if encryptionKey != "" {
 		// AES 256 requires a 32 byte key
 		if len(encryptionKey) != 32 {
