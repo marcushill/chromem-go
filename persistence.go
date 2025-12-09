@@ -177,7 +177,7 @@ func readFromFile(filePath string, obj any, encryptionKey string) error {
 // be compressed as gzip and/or encrypted with AES-GCM. The encryption key must
 // be 32 bytes long.
 // If the reader has to be closed, it's the caller's responsibility.
-func readFromReader(r io.ReadSeeker, obj any, encryptionKey string) error {
+func readFromReader(r io.Reader, obj any, encryptionKey string) error {
 	// AES 256 requires a 32 byte key
 	if encryptionKey != "" {
 		if len(encryptionKey) != 32 {
@@ -224,38 +224,30 @@ func readFromReader(r io.ReadSeeker, obj any, encryptionKey string) error {
 		chainedReader = r
 	}
 
-	// Determine if the stream is compressed
-	magicNumber := make([]byte, 2)
-	_, err := chainedReader.Read(magicNumber)
-	if err != nil {
-		return fmt.Errorf("couldn't read magic number to determine whether the stream is compressed: %w", err)
-	}
-	var compressed bool
-	if magicNumber[0] == 0x1f && magicNumber[1] == 0x8b {
-		compressed = true
-	}
-
-	// Reset reader. Both the reader from the param and bytes.Reader support seeking.
-	if s, ok := chainedReader.(io.Seeker); !ok {
-		return fmt.Errorf("reader doesn't support seeking")
-	} else {
-		_, err := s.Seek(0, 0)
+	if s, ok := chainedReader.(io.Seeker); ok {
+		// Determine if the stream is compressed
+		magicNumber := make([]byte, 2)
+		_, err := chainedReader.Read(magicNumber)
+		if err != nil {
+			return fmt.Errorf("couldn't read magic number to determine whether the stream is compressed: %w", err)
+		}
+		_, err = s.Seek(0, 0)
 		if err != nil {
 			return fmt.Errorf("couldn't reset reader: %w", err)
 		}
-	}
-
-	if compressed {
-		gzr, err := gzip.NewReader(chainedReader)
-		if err != nil {
-			return fmt.Errorf("couldn't create gzip reader: %w", err)
+		if magicNumber[0] == 0x1f && magicNumber[1] == 0x8b {
+			gzr, err := gzip.NewReader(chainedReader)
+			if err != nil {
+				return fmt.Errorf("couldn't create gzip reader: %w", err)
+			}
+			defer gzr.Close()
+			chainedReader = gzr
 		}
-		defer gzr.Close()
-		chainedReader = gzr
+
 	}
 
 	dec := gob.NewDecoder(chainedReader)
-	err = dec.Decode(obj)
+	err := dec.Decode(obj)
 	if err != nil {
 		return fmt.Errorf("couldn't decode object: %w", err)
 	}
